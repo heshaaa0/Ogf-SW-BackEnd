@@ -1,12 +1,20 @@
 require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
+const cors = require('cors');
 const userRoutes = require('./routes/users.js');
 
 const app = express();
 
 // Middleware
 app.use(express.json());
+
+//set the cors
+app.use(cors({
+  origin: '*' // Allow all origins (for development)
+  // For production, specify your frontend URL:
+  // origin: 'http://yourfrontenddomain.com'
+}));
 
 // Routes
 app.use('/api/users', userRoutes);

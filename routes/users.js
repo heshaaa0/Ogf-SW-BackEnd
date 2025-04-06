@@ -69,4 +69,64 @@ router.get('/check-or-create/:phoneNumber', async (req, res) => {
   }
 });
 
+// Check if user can play and mark as played
+router.get('/can-play/:phoneNumber', async (req, res) => {
+  try {
+    const phoneNumber = req.params.phoneNumber;
+    
+    // Validate phone number
+    if (!phoneNumber || !/^[0-9]{10,15}$/.test(phoneNumber)) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Invalid phone number format' 
+      });
+    }
+
+    // Find user and check if already played
+    const user = await User.findOne({ phoneNumber });
+    
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    if (user.isPlayed) {
+      return res.json({
+        success: false,
+        canPlay: false,
+        message: 'This user has already played the game'
+      });
+    }
+
+    // Update to mark as played
+    const updatedUser = await User.findOneAndUpdate(
+      { phoneNumber },
+      { 
+        isPlayed: true,
+        playedAt: new Date() 
+      },
+      { new: true }
+    );
+
+    res.json({
+      success: true,
+      canPlay: true,
+      message: 'You can now play the game',
+      user: {
+        phoneNumber: updatedUser.phoneNumber,
+        playedAt: updatedUser.playedAt
+      }
+    });
+
+  } catch (err) {
+    console.error('Error in can-play endpoint:', err);
+    res.status(500).json({ 
+      success: false,
+      message: 'Server error while checking play status' 
+    });
+  }
+});
+
 module.exports = router;

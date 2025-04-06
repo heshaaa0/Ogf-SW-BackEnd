@@ -13,6 +13,13 @@ const userSchema = new mongoose.Schema({
       },
       message: props => `${props.value} is not a valid phone number!`
     }
+  },
+  isPlayed: {
+    type: Boolean,
+    default: false // Default to false when new user is created
+  },
+  playedAt: {
+    type: Date
   }
 }, {
   timestamps: true
