@@ -19,6 +19,10 @@ app.use(cors({
 // Routes
 app.use('/api/users', userRoutes);
 
+app.get('/api', (req, res) => {
+  res.json({ status: 'API working' });
+});
+
 // Database connection
 mongoose.connect(process.env.MONGODB_URI, {
   useNewUrlParser: true,
