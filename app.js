@@ -30,7 +30,36 @@ const connectDB = async () => {
   }
 };
 
+
 connectDB();
+
+let isConnecting = false;
+let connectionQueue = [];
+
+async function handleDBConnection() {
+  if (mongoose.connection.readyState === 1) return;
+  
+  if (isConnecting) {
+    return new Promise(resolve => {
+      connectionQueue.push(resolve);
+    });
+  }
+
+  isConnecting = true;
+  try {
+    await mongoose.connect(process.env.MONGODB_URI);
+    connectionQueue.forEach(resolve => resolve());
+    connectionQueue = [];
+  } finally {
+    isConnecting = false;
+  }
+}
+
+// Use in your routes:
+app.get('/api/data', async (req, res) => {
+  await handleDBConnection();
+  // ... your route logic
+});
 
 let cachedDb = null;
 
