@@ -31,4 +31,4 @@ const prizeSchema = new mongoose.Schema({
   }
 });
 
-module.exports = mongoose.model('Prize', prizeSchema);
+module.exports = mongoose.model('Prizes', prizeSchema);

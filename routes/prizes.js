@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const Prize = require('../models/Prize');
+const Prize = require('../models/Prizes');
 
 // Get all active prizes with quantity > 0
 router.get('/available', async (req, res) => {
