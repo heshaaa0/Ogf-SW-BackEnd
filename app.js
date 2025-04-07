@@ -9,71 +9,62 @@ const app = express();
 // Middleware
 app.use(express.json());
 
-//set the cors
+// Configure CORS properly
 app.use(cors({
-  origin: '*' // Allow all origins (for development)
-  // For production, specify your frontend URL:
-  // origin: 'http://yourfrontenddomain.com'
+  origin: process.env.NODE_ENV === 'production' 
+    ? process.env.FRONTEND_URL 
+    : '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
+// Database connection setup
 const connectDB = async () => {
   try {
     await mongoose.connect(process.env.MONGODB_URI, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
-      serverSelectionTimeoutMS: 3000, // 3 seconds timeout for initial connection
-      socketTimeoutMS: 45000 // 45 seconds timeout for queries
+      serverSelectionTimeoutMS: 5000, // 5 seconds for initial connection
+      socketTimeoutMS: 30000, // 30 seconds for operations
+      maxPoolSize: 10, // Limit connection pool size
+      retryWrites: true,
+      w: 'majority'
     });
-    console.log('MongoDB pre-connected');
+    console.log('MongoDB connected successfully');
   } catch (err) {
-    console.error('Initial MongoDB connection error:', err);
+    console.error('MongoDB connection error:', err);
+    // In serverless, you might want to exit here in production
+    if (process.env.NODE_ENV === 'production') {
+      process.exit(1);
+    }
   }
 };
 
+// Simplified connection handling
+let dbConnected = false;
 
-connectDB();
-
-let isConnecting = false;
-let connectionQueue = [];
-
-async function handleDBConnection() {
-  if (mongoose.connection.readyState === 1) return;
-  
-  if (isConnecting) {
-    return new Promise(resolve => {
-      connectionQueue.push(resolve);
-    });
-  }
-
-  isConnecting = true;
-  try {
-    await mongoose.connect(process.env.MONGODB_URI);
-    connectionQueue.forEach(resolve => resolve());
-    connectionQueue = [];
-  } finally {
-    isConnecting = false;
-  }
-}
-
-// Use in your routes:
-app.get('/api/data', async (req, res) => {
-  await handleDBConnection();
-  // ... your route logic
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+  res.status(dbConnected ? 200 : 503).json({
+    status: dbConnected ? 'healthy' : 'unhealthy',
+    database: dbConnected ? 'connected' : 'disconnected'
+  });
 });
 
-let cachedDb = null;
+// Global error handler
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ error: 'Something went wrong!' });
+});
 
-async function getDatabase() {
-  if (cachedDb && mongoose.connection.readyState === 1) {
-    return cachedDb;
-  }
-  
-  cachedDb = await mongoose.connect(process.env.MONGODB_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true
+// Request timeout middleware
+app.use((req, res, next) => {
+  // Set timeout for all HTTP requests (8 seconds for 10s limit)
+  req.setTimeout(8000, () => {
+    res.status(504).json({ error: 'Request timeout' });
   });
-  return cachedDb;
-}
+  next();
+});
 
 // Routes
 app.use('/api/users', userRoutes);
@@ -82,16 +73,16 @@ app.get('/api', (req, res) => {
   res.json({ status: 'API working' });
 });
 
-// Database connection
-mongoose.connect(process.env.MONGODB_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-})
-.then(() => console.log('Connected to MongoDB'))
-.catch(err => console.error('MongoDB connection error:', err));
-
-// Start server
-const port = process.env.PORT || 3000;
-app.listen(port, '0.0.0.0', () => {
-  console.log(`Server running on port ${port}`);
-});
+// Start server only after DB connection in development
+if (process.env.NODE_ENV !== 'production') {
+  connectDB().then(() => {
+    dbConnected = true;
+    const port = process.env.PORT || 3000;
+    app.listen(port, '0.0.0.0', () => {
+      console.log(`Server running on port ${port}`);
+    });
+  });
+} else {
+  // For serverless (Vercel), we don't start a server
+  module.exports = app;
+}
